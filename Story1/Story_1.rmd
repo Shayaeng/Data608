@@ -1,0 +1,69 @@
+---
+output: reprex::reprex_document
+knit: reprex::reprex_render
+---
+
+Instructions
+The attached Excel file contains data on the present allocation of the Infrastructure Investment and Jobs Act funding by State and Territory.
+
+Your story (Data Visualization(s) ) should address the following questions:
+
+Is the allocation equitable based on the population of each of the States and Territories, or is bias apparent?
+
+Does the allocation favor the political interests of the Biden administration?
+Notes:
+
+You will need to source data on the current (estimated) population of each of the States and Territories (accuracy is more important than precision) and on the official election results of the 2020 Presidential election.
+
+You may choose to develop you visualizations using a desktop application or a code library. Your submittal should be in the form of a report (document) or a presentation.
+
+You may use any software or programming language you are comfortable with.
+
+# Load the data
+```{r}
+library(readxl)
+library(here)
+
+# Save file path to a variable
+data_path <- here("Data", "IIJA FUNDING AS OF MARCH 2023.xlsx")
+
+
+# Read in the data
+data <- read_excel(data_path)
+#data <- read_excel("C:\Users\shaya\OneDrive\Documents\repos\Data608\Story1\Data\IIJA FUNDING AS OF MARCH 2023.xlsx")
+```
+
+# Source data on the current (estimated) population of each of the States and Territories
+```{r}
+pop_data <- read.csv("Most Populous.csv")
+```
+
+# Source data on the official election results of the 2020 Presidential election
+```{r}
+# Source data on the official election results of the 2020 Presidential election
+```
+
+# Explore the data
+```{r}
+head(data)
+```
+
+# Data Visualization(s)
+```{r}
+# Your code here
+```
+
+# Conclusion
+```{r}
+# Your conclusion here
+```
+
+# Report
+```{r}
+# Your report here
+```
+
+# Presentation
+```{r}
+# Your presentation here
+```
