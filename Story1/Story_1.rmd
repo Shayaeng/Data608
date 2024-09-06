@@ -1,69 +1,224 @@
 ---
-output: reprex::reprex_document
-knit: reprex::reprex_render
+title: "Spending Allocation Equity and Political Bias"
+author: "Shaya Engelman"
+date: "2024-09-05"
+output:
+  pdf_document: default
+  word_document: default
 ---
 
-Instructions
-The attached Excel file contains data on the present allocation of the Infrastructure Investment and Jobs Act funding by State and Territory.
-
-Your story (Data Visualization(s) ) should address the following questions:
-
-Is the allocation equitable based on the population of each of the States and Territories, or is bias apparent?
-
-Does the allocation favor the political interests of the Biden administration?
-Notes:
-
-You will need to source data on the current (estimated) population of each of the States and Territories (accuracy is more important than precision) and on the official election results of the 2020 Presidential election.
-
-You may choose to develop you visualizations using a desktop application or a code library. Your submittal should be in the form of a report (document) or a presentation.
-
-You may use any software or programming language you are comfortable with.
-
-# Load the data
-```{r}
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = F)
+library(tidyverse)
 library(readxl)
-library(here)
-
-# Save file path to a variable
-data_path <- here("Data", "IIJA FUNDING AS OF MARCH 2023.xlsx")
-
-
-# Read in the data
-data <- read_excel(data_path)
-#data <- read_excel("C:\Users\shaya\OneDrive\Documents\repos\Data608\Story1\Data\IIJA FUNDING AS OF MARCH 2023.xlsx")
+library(knitr)
+library(usmap)
+library(viridis)
 ```
 
-# Source data on the current (estimated) population of each of the States and Territories
+## Introduction
+
+In this analysis, we aim to answer two key questions:
+
+1. Is the allocation of spending across the States and Territories equitable based on their populations?
+2. Does the allocation of spending favor the political interests of the Biden administration?
+
+To investigate these questions, we will explore spending per capita, spending distribution by political alignment, and the relationship between spending and population.
+
+## Data
+
+We start with the provided dataset, which contains spending amounts per state. We will also source data on the current population of each state and the official election results of the 2020 Presidential election.
+
 ```{r}
-pop_data <- read.csv("Most Populous.csv")
+# Read the data
+data <- read_excel("C:/Users/shaya/OneDrive/Documents/repos/Data608/Story1/Data/IIJA FUNDING AS OF MARCH 2023.xlsx")
+
+
+# Data source: https://www.census.gov/data/tables/time-series/demo/popest/2020s-state-total.html
+pop_raw <- read_excel("C:/Users/shaya/OneDrive/Documents/repos/Data608/Story1/Data/NST-EST2023-POP.xlsx")
+
+# Clean the population data
+pop_data <- pop_raw |>
+  setNames(c("state", "census", "2020", "2021", "2022", "2023")) |>
+  slice(-c(1:8, 61:66)) |>
+  select(state, `2023`) |>
+  mutate(state = gsub("^\\.", "", state) |>
+           toupper())
+
+# Identify missing states or territories
+unique_rows <- data |>
+  anti_join(pop_data, by = c("State, Teritory or Tribal Nation" = "state"))
+
+# Display the first few rows of the unique dataset to identify missing states or territories
+# unique_rows$"State, Teritory or Tribal Nation" # Remove this line before submission
+
+
+# Manually add the population for the US Territories sourced from here: https://www.nationsonline.org/oneworld/US-states-population.htm
+pop_data <- pop_data |>
+  add_row(state = "AMERICAN SAMOA", `2023` = 45000) |>
+  add_row(state = "GUAM", `2023` = 169000) |>
+  add_row(state = "NORTHERN MARIANA ISLANDS", `2023` = 51000) |>
+  add_row(state = "US VIRGIN ISLANDS", `2023` = 105000)
+
+# Drop the tribal communities row from the data
+data <- data |>
+  filter(`State, Teritory or Tribal Nation` != "TRIBAL COMMUNITIES")
+
+# Merge the data
+combined_data <- data |>
+  left_join(pop_data, by = c("State, Teritory or Tribal Nation" = "state")) |>
+  rename(population = `2023`)
+
+# Manually create a dataset with the official election results of the 2020 Presidential election. Source: https://www.archives.gov/electoral-college/2020
+
+election_results <- tribble(
+  ~state, ~biden, ~trump,
+  "ALABAMA", 849624, 1441170,
+  "ALASKA", 153778, 189951,
+  "ARIZONA", 1672143, 1661686,
+  "ARKANSAS", 423932, 760647,
+  "CALIFORNIA", 11109764, 6005961,
+  "COLORADO", 1804352, 1364607,
+  "CONNECTICUT", 1080831, 714854,
+  "DELAWARE", 296268, 200603,
+  "DISTRICT OF COLUMBIA", 317323, 185726,
+  "FLORIDA", 5297045, 5668731,
+  "GEORGIA", 2473633, 2461854,
+  "HAWAII", 366130, 196864,
+  "IDAHO", 287021, 554119,
+  "ILLINOIS", 3471020, 2750406,
+  "INDIANA", 1247974, 1729852,
+  "IOWA", 759061, 897672,
+  "KANSAS", 570323, 771406,
+  "KENTUCKY", 772474, 1326646,
+  "LOUISIANA", 856034, 1255776,
+  "MAINE", 435072, 360737,
+  "MARYLAND", 1985023, 976414,
+  "MASSACHUSETTS", 2382202, 1143783,
+  "MICHIGAN", 2804040, 2649852,
+  "MINNESOTA", 1717077, 1484065,
+  "MISSISSIPPI", 539398, 756764,
+  "MISSOURI", 1253014, 1718736,
+  "MONTANA", 244786, 343602,
+  "NEBRASKA", 374583, 556846,
+  "NEVADA", 703486, 669890,
+  "NEW HAMPSHIRE", 424937, 365654,
+  "NEW JERSEY", 2608335, 1899330,
+  "NEW MEXICO", 501614, 401894,
+  "NEW YORK", 5278737, 3458263,
+  "NORTH CAROLINA", 2684307, 2758779,
+  "NORTH DAKOTA", 114902, 235595,
+  "OHIO", 2679229, 3154834,
+  "OKLAHOMA", 503890, 1020280,
+  "OREGON", 1340383, 1002106,
+  "PENNSYLVANIA", 3458779, 3378263,
+  "RHODE ISLAND", 307486, 196721,
+  "SOUTH CAROLINA", 1138566, 1385103,
+  "SOUTH DAKOTA", 150471, 261043,
+  "TENNESSEE", 1140233, 1852475,
+  "TEXAS", 5274866, 5890347,
+  "UTAH", 560282, 865140,
+  "VERMONT", 242820, 112704,
+  "VIRGINIA", 2413568, 1968610,
+  "WASHINGTON", 2369612, 1592403,
+  "WEST VIRGINIA", 235984, 545382,
+  "WISCONSIN", 1630866, 1610184,
+  "WYOMING", 73491, 193559
+)
+
+# Add a column to the election results that contains the winner of the election in each state
+election_results <- election_results |>
+  mutate(winner = ifelse(biden > trump, "Biden", "Trump"))
+
+
+# Merge the winner column with the combined data
+combined_data <- combined_data |>
+  left_join(election_results |> select(state, winner), by = c("State, Teritory or Tribal Nation" = "state"))
+
+
+# Calculate spending per capita
+combined_data <- combined_data |>
+  mutate(spending_per_capita = `Total (Billions)` * 1e9 / population)
+
+
+# Rename the columns for better readability
+prepped_data <- combined_data |>
+  setNames(c("state", "total_spending_bil", "population", "winner", "spending_per_capita"))
+
+(head(prepped_data))
+
+# Save the prepped data to a CSV file
+#write_csv(prepped_data, "C:/Users/shaya/OneDrive/Documents/repos/Data608/Story1/Data/prepped_data.csv")
 ```
 
-# Source data on the official election results of the 2020 Presidential election
+## Analysis
+
+Now that we have prepped the data, we can proceed with the analysis. We will start by examining the relationship between total spending and population for each state. We will then investigate the deviation from equitable allocation of spending per capita across states. Finally, we will explore the total spending per capita by election winner.
+
 ```{r}
-# Source data on the official election results of the 2020 Presidential election
+data <- prepped_data
+#data <- read_csv("C:/Users/shaya/OneDrive/Documents/repos/Data608/Story1/Data/prepped_data.csv")
 ```
 
-# Explore the data
 ```{r}
-head(data)
+ggplot(data, aes(x = population, y = total_spending_bil)) +
+  geom_point(size = 3, alpha = 0.7, aes(color = winner)) +
+  geom_smooth(method = "lm", se = TRUE, color = "black", alpha = 0.5) +
+  scale_color_manual(values = c("blue", "red")) +
+  labs(title = "State Spending vs Population",
+       x = "Population",
+       y = "Total Spending",
+       color = "Election Winner") +
+  theme_void() +
+  theme(plot.title = element_text(size = 20))
 ```
 
-# Data Visualization(s)
+The above scatterplot shows the relationship between total spending and population for each state. The included trendline and standard error bands highlight expected spending levels based on population. A cursory examination reveals that the the vast majority of states are relatively close to the trendline, suggesting that spending is generally proportional to population. There appears to be no major patterns based on the election winner, with both Biden and Trump states above and below the trendline.
+
 ```{r}
-# Your code here
+# Calculate ideal spending per capita based on population
+total_spending <- sum(data$total_spending_bil, na.rm = TRUE)
+total_population <- sum(data$population, na.rm = TRUE)
+
+data <- data |>
+  mutate(expected_spending = total_spending / total_population * population,
+         deviation_from_ideal = total_spending_bil - expected_spending)
+
+data <- data |>
+  mutate(state = tolower(state)) # Ensure state names match the map dataset
+
+plot_usmap(data = data, values = "deviation_from_ideal", regions = "states") +
+  scale_fill_viridis(option = "magma", direction = -1) +
+  labs(title = "Deviation from Equitable Allocation",
+       fill = "Deviation from Ideal Spending") +
+  theme_void() +
+  theme(plot.title = element_text(size = 20))
 ```
 
-# Conclusion
+The map above shows the deviation from equitable allocation of spending per capita across states. States in blue have higher spending per capita than expected based on their population, while states in red have lower spending per capita. The map provides a visual representation of the disparities in spending allocation across states. It reveals the majority of states are close to the ideal allocation, with a few major outliers that deviate significantly. Alaska and Nebraska are extremely high, while Florida, California, and Texas are significantly lower than the ideal allocation. Something of note is that Alaska has a population to landmass ratio that is vastly larger than the other states, which may explain its high deviation from the ideal allocation. Larger landmasses may require more spending even with a smaller population. Additionally, Alaska has a unique geography and climate that may necessitate higher spending.
+
 ```{r}
-# Your conclusion here
+# Calculate total population and total spending by election winner
+weighted_data <- data |>
+  group_by(winner) |>
+  summarise(
+    total_population = sum(population, na.rm = TRUE),
+    total_spending = sum(total_spending_bil, na.rm = TRUE),
+    spend_per_capita = total_spending / total_population
+  )
+
+ggplot(weighted_data, aes(x = winner, y = spend_per_capita, fill = winner)) +
+  geom_bar(stat = "identity") +
+  scale_fill_manual(values = c("Biden" = "blue", "Trump" = "red", "No Vote" = "grey")) +  
+  geom_text(aes(label = ifelse(is.na(winner), "No Vote", winner)), vjust = -0.5, size = 6) +
+  theme_void() +
+  theme(legend.position = "none",
+        plot.title = element_text(size = 20)) +  
+  labs(title = "Total Spending Per Capita by Election Winner",
+       x = "Election Winner",
+       y = "Total Spending Per Capita") +
+  ylim(0, max(weighted_data$spend_per_capita) * 1.2)  # Adjust ylim to add space above bars
+
 ```
 
-# Report
-```{r}
-# Your report here
-```
-
-# Presentation
-```{r}
-# Your presentation here
-```
+Finally, the bar plot above shows the total spending per capita by election winner. The plot shows no evidence of favoritism by the current administration towards states that voted for Biden. On the contrary, states that voted for Trump have a higher spending per capita than states that voted for Biden. This suggests that the allocation of spending is not influenced by political interests and is likely due to specific anomalies in the needs of different states, for example, Alaska's large landmass and unique geography. The plot does seem to suggest that territories that cannot vote in the presidential election have lower spending per capita. However, this may be due to their unique status and not necessarily a result of political favoritism and requires further investigation.
