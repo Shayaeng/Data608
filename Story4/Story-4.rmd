@@ -1,0 +1,239 @@
+---
+title: "Story 4 - Data Practitioner Salaries in the U.S."
+author: "Shaya Engelman"
+date: "10/22/2024"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE, warning = FALSE, message = FALSE)
+```
+
+## Data Story: How Much Do Data Practitioners Earn Across the United States?
+
+In recent years, the demand for data practitioners---an umbrella term for roles like Data Scientist, Data Engineer, Data Analyst, and more---has grown exponentially. However, compensation for these roles can vary significantly based on location, specialization, and the specific skills required. This story investigates salary distributions across states, aiming to answer the pressing question: **"How much do we get paid?"**
+
+To provide a comprehensive view, we'll use three key visualizations:
+
+-   **Violin plots** to examine salary distributions and highlight the effect of outliers.
+
+-   **Bar plots** to offer an easily digestible summary of average salaries across roles.
+
+-   **State heatmaps** to capture regional salary differences in a straightforward format.
+
+Data sources:
+
+-   **Global dataset**: downloaded from [AI Jobs](https://aijobs.net/salaries/download/).
+
+-   **U.S. state dataset**: from [Kaggle](https://www.kaggle.com/datasets/juanmerinobermejo/data-jobs-dataset/data).
+
+------------------------------------------------------------------------
+
+### Step 1: Loading and Preparing the Data
+
+Let's start by loading data from both the U.S. and global datasets. Although the prompt requires using the U.S. dataset for visualization, it has a much smaller sample size and is broken down by state, while the global dataset only provides a single entry for the U.S. as a whole. To address the potential limitations of the smaller U.S. dataset, I compared bar plots from both datasets to check for consistency. The salary distributions across roles and categories were very similar between the two, so using the U.S. dataset for visualizations should still yield reliable insights.
+
+```{r}
+library(tidyverse)
+library(ggplot2)
+library(scales)
+library(data.table)
+
+# Load datasets
+data_global <- read_csv("C:/Users/shaya/Downloads/salaries.csv")
+data <- read.csv("C:\\Users\\shaya\\Downloads\\archive (13)\\jobs.csv", fileEncoding = "UTF-16LE", stringsAsFactors = FALSE)
+
+# Filter for rows without NA in Mean_Salary
+filtered_data <- data |> filter(!is.na(Mean_Salary))
+
+# Select relevant columns
+data_us <- filtered_data |> select(Jobs_Group, Remote, Location, State, Mean_Salary)
+
+# Update blank State entries to "Remote Work"
+data_us$State[data_us$State == ""] <- "Remote Work"
+
+data_us$State <- factor(data_us$State, levels = c("Remote Work", sort(unique(data_us$State[data_us$State != "Remote Work"]), decreasing = FALSE)))
+```
+
+------------------------------------------------------------------------
+
+### Step 2: Data Cleaning and Categorization
+
+To simplify the wide array of job titles, we grouped related titles into four main categories:
+
+-   Data Scientist
+
+-   AI/ML Engineer
+
+-   Data Engineer
+
+-   Data/BI Analyst
+
+This grouping helps highlight trends across job types without being overwhelmed by variations in title naming conventions.
+
+```{r}
+# Function to categorize job titles
+categorize_job_title <- function(job_title) {
+  if (grepl("Scientist|Research|Statistician", job_title, ignore.case = TRUE)) {
+    return("Data Scientist")
+  } else if (grepl("AI|ML|Machine Learning|Deep Learning|NLP|Artificial", job_title, ignore.case = TRUE)) {
+    return("AI/ML Engineer")
+  } else if (grepl("Data Engineer|ETL|Data Warehouse|Architect|Pipeline", job_title, ignore.case = TRUE)) {
+    return("Data Engineer")
+  } else if (grepl("Analyst|BI|Business Intelligence|Analytics", job_title, ignore.case = TRUE)) {
+    return("Data/BI Analyst")
+  } else {
+    return(NA)
+  }
+}
+
+# Apply categorization to both datasets
+data_global$job_category <- sapply(data_global$job_title, categorize_job_title)
+data_us$job_category <- sapply(data_us$Jobs_Group, categorize_job_title)
+
+# Filter out rows with missing job categories
+data_global <- data_global[!is.na(data_global$job_category), ]
+data_us <- data_us[!is.na(data_us$job_category), ]
+```
+
+------------------------------------------------------------------------
+
+### Step 3: Violin Plots for Salary Distribution by Job Category
+
+Violin plots reveal the spread and distribution of salaries within each job category, especially where outliers exist. This is crucial because a small number of extremely high salaries can skew averages, giving a misleading impression of overall earnings. Here, we use the U.S. dataset for our primary visualization.
+
+```{r}
+# Winsorizing data to handle extreme outliers
+data_winsorized <- data_us |>
+  mutate(Mean_Salary = ifelse(Mean_Salary > 300000, 300000, Mean_Salary))
+
+# Violin Plot: Salary Distribution by Job Category with boxplot
+ggplot(data_winsorized, aes(x = job_category, y = Mean_Salary, fill = job_category)) +
+  geom_violin(trim = FALSE) +
+  geom_boxplot(width = 0.3, outlier.shape = NA, alpha = 0.3, color = "black") +
+  scale_y_continuous(labels = dollar_format(prefix = "$")) +
+  labs(
+    title = "Salary Distribution by Job Category",
+    x = "Job Category",
+    y = "Salary (Capped at $300,000)"
+  ) +
+  theme_minimal() +
+  theme(
+    axis.text.x = element_text(angle = 45, hjust = 1, size = 15),
+    axis.text.y = element_text(size = 10),
+    plot.title = element_text(hjust = 0, size = 25),
+    legend.position = "none",
+    panel.grid.major = element_blank(),
+    panel.grid.minor = element_blank()
+  )
+```
+
+------------------------------------------------------------------------
+
+### Observations on Salary Distribution
+
+The violin plot shows a broad range of salaries for Data Scientists and AI/ML Engineers, with noticeable outliers on the higher end. These outliers are particularly impactful in high variance fields like AI/ML Engineering, where specialized skills can drive salaries above average.
+
+Data Analysts and Data Engineers have a tighter distribution, reflecting more standardized compensation structures. Data Scientists and AI/ML Engineers exhibit a wider spread, making it harder to predict earnings without considering specific job titles and responsibilities.
+
+Boxplots reveal that average analyst salaries are significantly lower than others, with a distinct gap. Data Engineers come second to last, followed by Data Scientists, although their distributions differ. AI/ML Engineers have substantially higher salaries but with a wide distribution, making these figures less reliable. Notably, even the lower end of AI/ML Engineer salaries aligns with the mean salaries of Data Scientists and Data Engineers.
+
+Salaries above $300,000 were capped at $300,000 to prevent graph distortion.
+
+### Step 4: Bar Plots for Average Salary by Job Category
+
+To provide a more accessible view, we created bar plots showing the average salary by job category. Although global data was available and checked for consistency, we exclusively visualized the U.S. data for clarity and relevance.
+
+```{r}
+# Calculate average salary by job category for U.S.
+avg_salary_us <- data_us |> group_by(job_category) |> summarise(avg_salary = mean(Mean_Salary, na.rm = TRUE))
+
+# Bar Plot: Average Salary by Job Category
+ggplot(avg_salary_us, aes(x = job_category, y = avg_salary, fill = job_category)) +
+  geom_bar(stat = "identity") +
+  scale_y_continuous(labels = dollar_format(prefix = "$")) +
+  labs(title = "Average Salary by Job Category (U.S.)", x = "Job Category", y = "Average Salary") +
+  theme_minimal() +
+  theme(
+    axis.text.x = element_text(angle = 45, hjust = 1, size = 15),
+    plot.title = element_text(hjust = 0, size = 15),
+    legend.position = "none",
+    panel.grid.major = element_blank(),
+    panel.grid.minor = element_blank()
+  )
+```
+
+As can be expected, the bar plot shows AI/ML Engineers have significantly higher average salaries compared to other data practitioner roles, Data Scientists and Data Engineers follow closely behind with very similar average salaries (albeit with a wider range as seen in the violin plot), and Data/BI Analysts have the lowest average salaries among the four categories.
+
+***Note**: A comparison with global data showed similar salary trends, reinforcing the reliability of our U.S. data despite the smaller dataset size. Uncomment the following code in the RMD file to display side-by-side global and U.S. bar plots for further comparison:*
+
+```{r}
+# Side-by-Side Bar Plots for U.S. and Global Data (optional)
+# p1 <- ggplot(avg_salary_global, aes(x = job_category, y = avg_salary, fill = job_category)) + ... (as above)
+# p2 <- ggplot(avg_salary_us, aes(x = job_category, y = avg_salary, fill = job_category)) + ... (as above)
+# grid.arrange(p1, p2, ncol = 2)
+```
+
+------------------------------------------------------------------------
+
+### Step 5: Heatmap of Average Salary by State
+
+To illustrate regional salary variations, we plotted a heatmap showing average salaries by job category across states. This state-level breakdown makes it easy to identify which regions offer the most competitive compensation for each data practitioner role.
+
+```{r, fig.width = 8, fig.height = 8}
+# Calculate average salary by state
+avg_salary_by_state <- data_us %>%
+  group_by(State) %>%
+  summarize(avg_salary = mean(Mean_Salary, na.rm = TRUE)) %>%
+  arrange(desc(avg_salary))
+
+# Update State factor levels based on average salary
+data_us$State <- factor(data_us$State, levels = avg_salary_by_state$State)
+
+# Define positions for the boxes
+top_10_start <- length(unique(avg_salary_by_state$State)) - 9.5
+top_10_end <- length(unique(avg_salary_by_state$State)) + 0.5
+bottom_10_start <- 0.5
+bottom_10_end <- 10.5
+
+# State Heatmap of Average Salary sorted by highest average salary with colored boxes
+ggplot(data_us, aes(x = job_category, y = State, fill = Mean_Salary)) +
+  geom_tile(color = "white") +
+  geom_rect(aes(xmin = -Inf, xmax = Inf, ymin = top_10_start, ymax = top_10_end),
+            fill = NA, color = "green", size = 1.5) +  # Green box for top 10
+  geom_rect(aes(xmin = -Inf, xmax = Inf, ymin = bottom_10_start, ymax = bottom_10_end),
+            fill = NA, color = "red", size = 1.5) +  # Red box for bottom 10
+  scale_fill_gradientn(
+    colors = c("lightblue", "cyan", "blue", "darkblue"),
+    values = rescale(c(0, 0.3, 0.6, 1)),
+    labels = dollar_format(scale = 1)
+  ) +
+  scale_y_discrete(limits = rev(levels(data_us$State))) +  # Reverse order of y-axis labels
+  labs(title = "Average Salary by State and Job Category", x = "Job Category", y = "State", fill = "Mean Salary") +
+  theme_minimal() +
+  theme(
+    axis.text.x = element_text(size = 10),
+    axis.text.y = element_text(size = 8),
+    plot.title = element_text(hjust = 0, size = 15),
+    panel.grid.major = element_blank(),
+    panel.grid.minor = element_blank()
+  )
+
+```
+
+
+
+
+------------------------------------------------------------------------
+
+### Insights and Conclusions
+
+The analysis highlights key trends in the salary landscape for data practitioners across the United States:
+
+-   **Salary Variation by Job Type**: Data Scientist and AI/ML Engineer roles generally command higher salaries than Data Analysts and some Data Engineer roles. This aligns with the specialized technical skills required for these fields. The high AI/ML Engineer salaries seem to be help by people working fully remote.
+
+-   **Impact of Location**: Regions with strong tech hubs, such as California, Washington, Washington DC, and surprisingly, Illinois, often offer higher salaries. The heatmap visualization brings these differences into stark relief, showing substantial variation between states. AN interesting observation is that the highest salaries are in states with the highest cost of living, such as California and Washington.
+
+-   **Global Comparability**: A side analysis with global data shows similar trends in role-based salary variation, lending confidence to the insights drawn from the U.S. data. While not included in this report, the code to generate these comparisons is available in the provided RMD file.
+
+Overall, this data story offers a grounded view of earnings potential across data practitioner roles and regions, helping prospective candidates gauge the landscape as they consider career and location choices.
